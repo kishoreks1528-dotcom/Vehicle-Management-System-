@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fleetbook – Vehicle Management</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#eef0ec;--card:#fff;--ink:#1b2a2f;--mute:#5d6b70;--line:#d3d9d4;--brand:#0f5e6b;--onbrand:#fff;--ok:#2f7d4f;--bad:#b23a2e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121b1e;--card:#1a2629;--ink:#e6ecea;--mute:#96a5a9;--line:#2c3b3f;--brand:#4fb3c2;--onbrand:#08262b;--ok:#5cc084;--bad:#e5786c}}
+:root[data-theme="dark"]{--bg:#121b1e;--card:#1a2629;--ink:#e6ecea;--mute:#96a5a9;--line:#2c3b3f;--brand:#4fb3c2;--onbrand:#08262b;--ok:#5cc084;--bad:#e5786c}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 Archivo,system-ui,sans-serif}
+.app{max-width:1040px;margin:0 auto;padding:20px 16px 48px;display:grid;grid-template-columns:230px 1fr;gap:20px}
+@media(max-width:720px){.app{grid-template-columns:1fr}}
+h1{margin:0 0 14px;font-size:28px;font-weight:800;letter-spacing:-.02em}
+h2{margin:0 0 4px;font-size:22px;font-weight:800}
+.sub{margin:0 0 16px;color:var(--mute)}
+nav{display:flex;flex-direction:column;gap:4px}
+@media(max-width:720px){nav{flex-direction:row;overflow-x:auto;padding-bottom:4px}}
+nav button{text-align:left;background:transparent;color:var(--ink);border:1px solid transparent;white-space:nowrap;font-weight:400}
+nav button[aria-current="page"]{background:var(--card);border-color:var(--line);font-weight:600;color:var(--brand)}
+button{font:inherit;font-weight:600;border:0;border-radius:6px;padding:9px 16px;cursor:pointer;background:var(--brand);color:var(--onbrand);min-height:38px}
+button.danger{background:var(--bad);color:#fff}
+button.plain{background:transparent;color:var(--brand);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute)}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-height:38px;width:100%}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:520px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}
+th{font-size:13px;color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right}
+.reg{font-weight:800;letter-spacing:.04em}
+.total td{font-weight:800;border-bottom:0}
+.msg{margin-top:12px;min-height:22px;font-weight:600}
+.msg.ok{color:var(--ok)}.msg.err{color:var(--bad)}
+.empty{padding:20px 0;color:var(--mute)}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+[hidden]{display:none!important}
+.login{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:20px 16px}
+.login .box{width:100%;max-width:380px}
+.login h1{font-size:34px;margin-bottom:4px}
+.login form{grid-template-columns:1fr}
+.login .hint{margin-top:14px;font-size:13px;color:var(--mute)}
+.logout{margin-top:12px}
+@media(max-width:720px){.logout{margin:0 0 0 auto}}
+</style>
+</head>
+<body>
+<section id="login" class="login" hidden>
+  <div class="box">
+    <h1>Fleetbook</h1>
+    <p class="sub">Sign in to manage your vehicles and service records.</p>
+    <div class="panel">
+      <form id="lf">
+        <label>Username<input name="user" autocomplete="username" required autofocus></label>
+        <label>Password<input name="pass" type="password" autocomplete="current-password" required></label>
+        <button>Sign in</button>
+      </form>
+      <div id="lmsg" class="msg" role="alert"></div>
+      <p class="hint">Demo login: username <b>admin</b>, password <b>admin123</b></p>
+    </div>
+  </div>
+</section>
+
+<div class="app" id="app" hidden>
+  <div>
+    <h1>Fleetbook</h1>
+    <nav id="nav" aria-label="Menu"></nav>
+    <button id="out" class="plain logout">Sign out</button>
+  </div>
+  <main id="main"></main>
+</div>
+
+<script>
+(function(){
+  var KEY='fleetbook:v2';
+  var db;
+  try{db=JSON.parse(localStorage.getItem(KEY));}catch(e){db=null;}
+  if(!db||!db.vehicles)db={vehicles:[
+    {reg:'TN09AB1234',owner:'Ravi Kumar',make:'Tata',model:'Ace',year:2019},
+    {reg:'TN10CD5521',owner:'Meena S',make:'Toyota',model:'Innova',year:2017}
+  ],services:[
+    {id:1,reg:'TN09AB1234',date:'2026-06-12',desc:'Oil change and filters',cost:2800},
+    {id:2,reg:'TN09AB1234',date:'2026-08-30',desc:'Brake pad replacement',cost:4500}
+  ]};
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}}
+  function esc(t){return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function norm(r){return String(r).replace(/\s+/g,'').toUpperCase();}
+  var DIST=('01 Chennai Central;02 Chennai North West;03 Chennai North East;04 Chennai East;05 Chennai North;06 Chennai South East;07 Chennai South;09 Chennai West;10 Chennai South West;11 Tambaram;12 Poonamallee;13 Ambattur;14 Sholinganallur;18 Red Hills;19 Chengalpattu;20 Thiruvallur;21 Kancheepuram;22 Meenambakkam;23 Vellore;24 Krishnagiri;25 Tiruvannamalai;27 Salem;28 Namakkal North;29 Dharmapuri;30 Salem West;31 Cuddalore;32 Villupuram;33 Erode East;37 Coimbatore South;38 Coimbatore North;39 Tirupur North;41 Pollachi;43 Ooty;45 Tiruchirappalli;46 Perambalur;47 Karur;48 Srirangam;49 Thanjavur;50 Tiruvarur;51 Nagapattinam;54 Salem East;55 Pudukkottai;57 Dindigul;58 Madurai South;59 Madurai North;60 Theni;61 Ariyalur;63 Sivaganga;64 Madurai Central;65 Ramanathapuram;66 Coimbatore Central;67 Virudhunagar;68 Kumbakonam;69 Thoothukudi;70 Hosur;72 Tirunelveli;73 Ranipet;74 Nagercoil;99 Coimbatore West').split(';').map(function(s){return {c:s.slice(0,2),n:s.slice(3)};});
+  var RX=/^([A-Z]{2})(\d{2})([A-Z]{1,3})(\d{4})$/;
+  function fmt(r){var m=RX.exec(r);return m?m[1]+' '+m[2]+' '+m[3]+' '+m[4]:r;}
+  function dname(r){var m=RX.exec(r);if(!m)return '';var d=DIST.filter(function(x){return x.c===m[2];})[0];return d?d.n:'';}
+  function distOpts(blank){return '<option value="">'+blank+'</option>'+DIST.map(function(d){return '<option value="'+d.c+'">TN '+d.c+' – '+d.n+'</option>';}).join('');}
+  function find(r){r=norm(r);return db.vehicles.filter(function(v){return v.reg===r;})[0];}
+  function money(n){return '₹'+Number(n).toLocaleString('en-IN');}
+  function vrows(list){
+    if(!list.length)return '<p class="empty">No vehicles to show.</p>';
+    return '<div class="scroll"><table><thead><tr><th>Registration</th><th>District</th><th>Owner</th><th>Make and model</th><th>Year</th></tr></thead><tbody>'+
+      list.map(function(v){return '<tr><td class="reg">'+esc(fmt(v.reg))+'</td><td>'+esc(dname(v.reg))+'</td><td>'+esc(v.owner)+'</td><td>'+esc(v.make)+' '+esc(v.model)+'</td><td>'+esc(v.year)+'</td></tr>';}).join('')+'</tbody></table></div>';
+  }
+  function opts(sel){
+    return db.vehicles.map(function(v){return '<option value="'+esc(v.reg)+'"'+(v.reg===sel?' selected':'')+'>'+esc(fmt(v.reg))+' – '+esc(v.owner)+'</option>';}).join('');
+  }
+  function head(t,s){return '<h2>'+t+'</h2><p class="sub">'+s+'</p>';}
+  function msg(text,ok){var m=document.getElementById('msg');if(m){m.textContent=text;m.className='msg '+(ok?'ok':'err');}}
+  function fld(l,n,type,extra){return '<label>'+l+'<input name="'+n+'" type="'+(type||'text')+'" '+(extra||'')+'></label>';}
+
+  var pages=[
+    {id:'add',label:'Add a vehicle',render:function(el){
+      el.innerHTML=head('Add a vehicle','Pick the district code, then enter the series letters and the 4-digit number.')+'<div class="panel"><form id="f">'+
+        '<label>District code<select name="dist" required>'+distOpts('Select district')+'</select></label>'+
+        fld('Series letters','series','text','required maxlength="3" pattern="[A-Za-z]{1,3}" placeholder="AB"')+
+        fld('Number','num','text','required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="1234"')+
+        fld('Owner name','owner','text','required')+
+        fld('Make','make','text','required placeholder="Tata"')+fld('Model','model','text','required placeholder="Ace"')+
+        fld('Year','year','number','required min="1980" max="2100"')+'<button>Add vehicle</button></form><div id="msg" class="msg"></div></div>';
+      document.getElementById('f').onsubmit=function(e){
+        e.preventDefault();var f=e.target,reg='TN'+f.dist.value+f.series.value.trim().toUpperCase()+f.num.value;
+        if(find(reg)){msg('A vehicle with registration '+fmt(reg)+' already exists.',false);return;}
+        db.vehicles.push({reg:reg,owner:f.owner.value.trim(),make:f.make.value.trim(),model:f.model.value.trim(),year:Number(f.year.value)});
+        save();f.reset();msg('Added vehicle '+fmt(reg)+'.',true);
+      };
+    }},
+    {id:'all',label:'View all vehicles',render:function(el){
+      el.innerHTML=head('All vehicles',db.vehicles.length+' registered.')+
+        (db.vehicles.length?'<div class="panel" style="margin-bottom:16px"><form id="bf"><label>Change the district code of every registration shown below<select name="dist" required>'+distOpts('Select new district')+'</select></label><button>Change for all</button></form>'+
+        '<div id="ask" hidden><p id="askt"></p><div class="row"><button id="yes">Yes, change all</button><button id="no" class="plain">Cancel</button></div></div><div id="msg" class="msg"></div></div>':'')+
+        '<div class="panel">'+vrows(db.vehicles)+'</div>';
+      var bf=document.getElementById('bf');if(!bf)return;
+      var ask=document.getElementById('ask');
+      function nreg(r,c){var m=RX.exec(r);return m?m[1]+c+m[3]+m[4]:r;}
+      bf.onsubmit=function(e){
+        e.preventDefault();
+        document.getElementById('askt').textContent='Change all '+db.vehicles.length+' registrations to district code TN '+bf.dist.value+'? Their service records move with them.';
+        ask.hidden=false;
+      };
+      document.getElementById('no').onclick=function(){ask.hidden=true;};
+      document.getElementById('yes').onclick=function(){
+        var c=bf.dist.value,seen={},clash=null;
+        db.vehicles.forEach(function(v){var n=nreg(v.reg,c);if(seen[n]&&!clash)clash=fmt(n);seen[n]=1;});
+        if(clash){ask.hidden=true;msg('Not changed: two vehicles would both become '+clash+'. Change one of them first on the Update page.',false);return;}
+        var map={};
+        db.vehicles.forEach(function(v){var n=nreg(v.reg,c);map[v.reg]=n;v.reg=n;});
+        db.services.forEach(function(s){if(map[s.reg])s.reg=map[s.reg];});
+        save();pages[1].render(el);msg('Changed all registrations to district code TN '+c+'.',true);
+      };
+    }},
+    {id:'search',label:'Search',render:function(el){
+      el.innerHTML=head('Search','Find vehicles by registration number or owner name.')+'<div class="panel"><label>Registration number or owner<input id="q" type="search" placeholder="Type to search"></label><div id="res" style="margin-top:12px"></div></div>';
+      function go(){
+        var q=document.getElementById('q').value.trim().toLowerCase(),qn=norm(q);
+        var list=q?db.vehicles.filter(function(v){return v.reg.toLowerCase().indexOf(qn.toLowerCase())>-1||v.owner.toLowerCase().indexOf(q)>-1;}):[];
+        document.getElementById('res').innerHTML=q?vrows(list):'<p class="empty">Start typing to see matches.</p>';
+      }
+      document.getElementById('q').oninput=go;go();
+    }},
+    {id:'update',label:'Update a vehicle',render:function(el){
+      el.innerHTML=head('Update a vehicle','Leave a field blank to keep its old value.')+'<div class="panel"><form id="f">'+
+        fld('Current registration number (required)','reg','text','required list="regs" placeholder="TN09AB1234"')+'<datalist id="regs">'+db.vehicles.map(function(v){return '<option value="'+esc(v.reg)+'">';}).join('')+'</datalist>'+
+        '<label>New district code<select name="dist">'+distOpts('Keep current')+'</select></label>'+
+        fld('New series letters','series','text','maxlength="3" pattern="[A-Za-z]{1,3}"')+fld('New number','num','text','maxlength="4" pattern="[0-9]{4}" inputmode="numeric"')+
+        fld('New owner name','owner')+fld('New make','make')+fld('New model','model')+fld('New year','year','number','min="1980" max="2100"')+
+        '<button>Update vehicle</button></form><div id="msg" class="msg"></div></div>';
+      var f=document.getElementById('f');
+      f.reg.oninput=function(){var v=find(f.reg.value),m=v&&RX.exec(v.reg);
+        f.owner.placeholder=v?v.owner:'';f.make.placeholder=v?v.make:'';f.model.placeholder=v?v.model:'';f.year.placeholder=v?v.year:'';
+        f.series.placeholder=m?m[3]:'';f.num.placeholder=m?m[4]:'';};
+      f.onsubmit=function(e){
+        e.preventDefault();var v=find(f.reg.value);
+        if(!v){msg('No vehicle found with that registration number.',false);return;}
+        var m=RX.exec(v.reg),old=v.reg;
+        if(m&&(f.dist.value||f.series.value.trim()||f.num.value)){
+          var nr=m[1]+(f.dist.value||m[2])+(f.series.value.trim().toUpperCase()||m[3])+(f.num.value||m[4]);
+          if(nr!==old){
+            if(find(nr)){msg('Registration '+fmt(nr)+' is already used by another vehicle.',false);return;}
+            v.reg=nr;db.services.forEach(function(s){if(s.reg===old)s.reg=nr;});
+          }
+        }
+        if(f.owner.value.trim())v.owner=f.owner.value.trim();
+        if(f.make.value.trim())v.make=f.make.value.trim();
+        if(f.model.value.trim())v.model=f.model.value.trim();
+        if(f.year.value)v.year=Number(f.year.value);
+        save();var r=v.reg;f.reset();msg('Updated vehicle '+fmt(r)+'.',true);
+      };
+    }},
+    {id:'delete',label:'Delete a vehicle',render:function(el){
+      el.innerHTML=head('Delete a vehicle','Its service records are deleted too.')+'<div class="panel"><label>Vehicle<select id="sel">'+opts()+'</select></label>'+
+        '<div class="row"><button id="del" class="danger">Delete vehicle</button></div>'+
+        '<div id="ask" hidden><p id="askt"></p><div class="row"><button id="yes" class="danger">Yes, delete</button><button id="no" class="plain">Cancel</button></div></div><div id="msg" class="msg"></div></div>';
+      if(!db.vehicles.length){el.querySelector('.panel').innerHTML='<p class="empty">There are no vehicles to delete.</p><div id="msg" class="msg"></div>';return;}
+      var sel=document.getElementById('sel'),ask=document.getElementById('ask');
+      document.getElementById('del').onclick=function(){
+        var n=db.services.filter(function(s){return s.reg===sel.value;}).length;
+        document.getElementById('askt').textContent='Delete '+sel.value+' and its '+n+' service record'+(n===1?'':'s')+'? This cannot be undone.';
+        ask.hidden=false;
+      };
+      document.getElementById('no').onclick=function(){ask.hidden=true;};
+      document.getElementById('yes').onclick=function(){
+        var r=sel.value;
+        db.vehicles=db.vehicles.filter(function(v){return v.reg!==r;});
+        db.services=db.services.filter(function(s){return s.reg!==r;});
+        save();pages[4].render(el);msg('Deleted '+r+' and its service records.',true);
+      };
+    }},
+    {id:'svc',label:'Add a service record',render:function(el){
+      if(!db.vehicles.length){el.innerHTML=head('Add a service record','')+'<div class="panel"><p class="empty">Add a vehicle first.</p></div>';return;}
+      el.innerHTML=head('Add a service record','Log work done on a vehicle.')+'<div class="panel"><form id="f">'+
+        '<label>Vehicle<select name="reg">'+opts()+'</select></label>'+fld('Service date','date','date','required')+
+        fld('Work done','desc','text','required placeholder="Oil change"')+fld('Cost (₹)','cost','number','required min="0" step="0.01"')+
+        '<button>Add service record</button></form><div id="msg" class="msg"></div></div>';
+      var f=document.getElementById('f');f.date.value=new Date().toISOString().slice(0,10);
+      f.onsubmit=function(e){
+        e.preventDefault();
+        db.services.push({id:Date.now(),reg:f.reg.value,date:f.date.value,desc:f.desc.value.trim(),cost:Number(f.cost.value)});
+        save();var r=f.reg.value;f.desc.value='';f.cost.value='';msg('Service record added for '+r+'.',true);
+      };
+    }},
+    {id:'hist',label:'Service history',render:function(el){
+      if(!db.vehicles.length){el.innerHTML=head('Service history','')+'<div class="panel"><p class="empty">No vehicles yet.</p></div>';return;}
+      el.innerHTML=head('Service history','Every service for a vehicle, with the total cost.')+'<div class="panel"><label>Vehicle<select id="sel">'+opts()+'</select></label><div id="res" style="margin-top:12px"></div></div>';
+      var sel=document.getElementById('sel');
+      function go(){
+        var list=db.services.filter(function(s){return s.reg===sel.value;}).sort(function(a,b){return a.date<b.date?-1:1;});
+        if(!list.length){document.getElementById('res').innerHTML='<p class="empty">No service records for '+esc(sel.value)+' yet.</p>';return;}
+        var t=list.reduce(function(a,s){return a+s.cost;},0);
+        document.getElementById('res').innerHTML='<div class="scroll"><table><thead><tr><th>Date</th><th>Work done</th><th class="n">Cost</th></tr></thead><tbody>'+
+          list.map(function(s){return '<tr><td>'+esc(s.date)+'</td><td>'+esc(s.desc)+'</td><td class="n">'+money(s.cost)+'</td></tr>';}).join('')+
+          '<tr class="total"><td></td><td>Total ('+list.length+' service'+(list.length===1?'':'s')+')</td><td class="n">'+money(t)+'</td></tr></tbody></table></div>';
+      }
+      sel.onchange=go;go();
+    }}
+  ];
+  var nav=document.getElementById('nav'),main=document.getElementById('main');
+  function show(i){
+    Array.prototype.forEach.call(nav.children,function(b,j){if(j===i)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+    pages[i].render(main);
+  }
+  pages.forEach(function(p,i){
+    var b=document.createElement('button');b.textContent=p.label;b.onclick=function(){show(i);};nav.appendChild(b);
+  });
+  var USER='admin',PASS='admin123',AK='fleetbook:auth';
+  var loginEl=document.getElementById('login'),appEl=document.getElementById('app');
+  function signedIn(){try{return sessionStorage.getItem(AK)==='1';}catch(e){return window.__auth===true;}}
+  function setAuth(v){window.__auth=v;try{if(v)sessionStorage.setItem(AK,'1');else sessionStorage.removeItem(AK);}catch(e){}}
+  function gate(){
+    var ok=signedIn();
+    loginEl.hidden=ok;appEl.hidden=!ok;
+    if(ok)show(0);
+  }
+  document.getElementById('lf').onsubmit=function(e){
+    e.preventDefault();var f=e.target,m=document.getElementById('lmsg');
+    if(f.user.value.trim()===USER&&f.pass.value===PASS){setAuth(true);f.reset();m.textContent='';gate();}
+    else{m.textContent='Wrong username or password. Try again.';m.className='msg err';f.pass.value='';f.pass.focus();}
+  };
+  document.getElementById('out').onclick=function(){setAuth(false);gate();};
+  gate();
+})();
+</script>
+</body>
+</html>
